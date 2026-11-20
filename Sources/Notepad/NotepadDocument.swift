@@ -41,10 +41,19 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.isVerticallyResizable = true
         tv.autoresizingMask = [.width]
-        tv.backgroundColor = .textBackgroundColor
-        tv.textColor = .textColor
+        // Classic blue editing screen (DOS Edit style): deep blue, light grey text.
+        let blue = NSColor(srgbRed: 0, green: 0, blue: 0.67, alpha: 1)
+        let fg = NSColor(srgbRed: 0.9, green: 0.9, blue: 0.9, alpha: 1)
+        tv.drawsBackground = true
+        tv.backgroundColor = blue
+        tv.insertionPointColor = .white
+        tv.selectedTextAttributes = [.backgroundColor: NSColor(srgbRed: 0.67, green: 0.67, blue: 0.67, alpha: 1),
+                                     .foregroundColor: blue]
+        scrollView.backgroundColor = blue
         tv.font = Settings.font
         tv.string = text
+        tv.textColor = fg
+        tv.typingAttributes[.foregroundColor] = fg
         tv.delegate = self
         textView = tv
 
