@@ -12,6 +12,22 @@ func draw(_ px: Int) -> NSBitmapImageRep {
     let ctx = NSGraphicsContext.current!.cgContext
     ctx.scaleBy(x: s, y: s)
 
+    // Rounded-square tile, blue to light blue (standard macOS icon grid: 824pt tile, 100pt inset)
+    let tileRect = NSRect(x: 100, y: 100, width: 824, height: 824)
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -10), blur: 24, color: NSColor.black.withAlphaComponent(0.3).cgColor)
+    let tile = NSBezierPath(roundedRect: tileRect, xRadius: 185, yRadius: 185)
+    NSColor(calibratedRed: 0.1, green: 0.35, blue: 0.8, alpha: 1).setFill()
+    tile.fill()
+    ctx.restoreGState()
+    NSGradient(starting: NSColor(calibratedRed: 0.55, green: 0.80, blue: 1.0, alpha: 1),
+               ending: NSColor(calibratedRed: 0.08, green: 0.33, blue: 0.80, alpha: 1))!.draw(in: tile, angle: -90)
+
+    // Shrink the notepad to sit inside the tile
+    ctx.translateBy(x: 512, y: 512)
+    ctx.scaleBy(x: 0.72, y: 0.72)
+    ctx.translateBy(x: -512, y: -517)
+
     // Paper with drop shadow
     let paper = NSRect(x: 196, y: 100, width: 632, height: 790)
     ctx.saveGState()
