@@ -1,0 +1,17 @@
+# Notepad
+
+A basic Windows-style Notepad for macOS (Swift + AppKit, SwiftPM).
+
+Build and run:
+
+    scripts/build-app.sh --run
+
+The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/NotepadBuild`).
+
+## Features
+- Plain text only, Courier New 13pt by default (Format > Font… to change; remembered)
+- Format > Word Wrap (on by default; remembered)
+- New / Open / Save / Save As / Print, "unsaved changes" prompt on close
+- Title bar shows "Untitled - Notepad"
+- Edit: Undo, Cut, Copy, Paste, Find (⌘F), Find Next (⌘G), Replace (⌥⌘F), Go To Line (⌘L), Select All, Time/Date (F5)
+- Opens UTF-8, UTF-16 and Windows-1252 files and saves back in the same encoding
