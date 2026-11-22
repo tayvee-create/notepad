@@ -6,6 +6,10 @@ enum Settings {
         get { UserDefaults.standard.object(forKey: "wordWrap") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "wordWrap") }
     }
+    static var statusBar: Bool {
+        get { UserDefaults.standard.object(forKey: "statusBar") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "statusBar") }
+    }
     static var font: NSFont {
         get {
             let d = UserDefaults.standard
@@ -119,6 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         format.addItem(item("Word Wrap", #selector(NotepadDocument.toggleWordWrap(_:)), ""))
         format.addItem(item("Font…", #selector(NotepadDocument.chooseFont(_:)), "t"))
         add(format, "Format", to: main)
+
+        // View
+        let view = NSMenu(title: "View")
+        view.addItem(item("Status Bar", #selector(NotepadDocument.toggleStatusBar(_:)), "/"))
+        add(view, "View", to: main)
 
         // Window
         let window = NSMenu(title: "Window")

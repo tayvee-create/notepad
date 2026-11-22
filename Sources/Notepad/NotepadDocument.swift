@@ -5,6 +5,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     private var encoding: String.Encoding = .utf8
     private var textView: NSTextView!
     private var scrollView: NSScrollView!
+    private var statusBar: StatusBar!
 
     override class var autosavesInPlace: Bool { false }
     override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool { true }
@@ -54,7 +55,15 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         textView = tv
 
         scrollView.documentView = tv
-        window.contentView = scrollView
+
+        // Content = text area on top, status bar along the bottom.
+        let content = NSView(frame: window.contentView!.bounds)
+        statusBar = StatusBar(frame: NSRect(x: 0, y: 0, width: content.bounds.width, height: StatusBar.height))
+        statusBar.autoresizingMask = [.width, .maxYMargin]
+        content.addSubview(scrollView)
+        content.addSubview(statusBar)
+        window.contentView = content
+        applyStatusBar(Settings.statusBar)
         applyWordWrap(Settings.wordWrap)
 
         let controller = NotepadWindowController(window: window)
@@ -68,6 +77,52 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         }
         window.makeFirstResponder(tv)
         tv.setSelectedRange(NSRange(location: 0, length: 0))
+        updateStatus()
+    }
+
+    private func applyStatusBar(_ show: Bool) {
+        guard let content = scrollView?.superview else { return }
+        statusBar.isHidden = !show
+        let h = show ? StatusBar.height : 0
+        scrollView.frame = NSRect(x: 0, y: h, width: content.bounds.width, height: content.bounds.height - h)
+        if show { updateStatus() }
+    }
+
+    /// "Ln 3, Col 12" and "1,234 characters" (or "5 of 1,234 characters" with a selection).
+    private func updateStatus() {
+        guard let tv = textView, let bar = statusBar, !bar.isHidden else { return }
+        let s = tv.string as NSString
+        let sel = tv.selectedRange()
+        let caret = min(sel.location, s.length)
+
+        var line = 1
+        var i = 0
+        while i < caret {
+            let r = s.rangeOfCharacter(from: .newlines, options: [], range: NSRange(location: i, length: caret - i))
+            if r.location == NSNotFound { break }
+            // Treat \r\n as a single line break.
+            if s.character(at: r.location) == 13, r.location + 1 < s.length, s.character(at: r.location + 1) == 10 {
+                if r.location + 1 < caret { i = r.location + 2 } else { i = caret; break }
+            } else {
+                i = r.location + 1
+            }
+            line += 1
+        }
+        let lineStart = s.lineRange(for: NSRange(location: caret, length: 0)).location
+        let col = (s.substring(with: NSRange(location: lineStart, length: caret - lineStart)) as String).count + 1
+
+        let fmt = NumberFormatter()
+        fmt.numberStyle = .decimal
+        let total = tv.string.count
+        let totalText = fmt.string(from: NSNumber(value: total)) ?? "\(total)"
+        let noun = total == 1 ? "character" : "characters"
+        var chars = "\(totalText) \(noun)"
+        if sel.length > 0 {
+            let selected = s.substring(with: sel).count
+            chars = "\(fmt.string(from: NSNumber(value: selected)) ?? "\(selected)") of \(totalText) \(noun)"
+        }
+        bar.position.stringValue = "Ln \(line), Col \(col)"
+        bar.characters.stringValue = chars
     }
 
     private func applyWordWrap(_ wrap: Bool) {
@@ -142,6 +197,13 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         }
     }
 
+    @objc func toggleStatusBar(_ sender: Any?) {
+        Settings.statusBar.toggle()
+        for doc in NSDocumentController.shared.documents {
+            (doc as? NotepadDocument)?.applyStatusBar(Settings.statusBar)
+        }
+    }
+
     @objc func chooseFont(_ sender: Any?) {
         let fm = NSFontManager.shared
         fm.target = self
@@ -208,6 +270,10 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
             menuItem.state = Settings.wordWrap ? .on : .off
             return true
         }
+        if menuItem.action == #selector(toggleStatusBar(_:)) {
+            menuItem.state = Settings.statusBar ? .on : .off
+            return true
+        }
         if menuItem.action == #selector(goToLine(_:)) {
             return true
         }
@@ -218,6 +284,57 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) {
         text = textView.string
+        updateStatus()
+    }
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        updateStatus()
+    }
+}
+
+/// Bottom status bar: caret position and character count, Windows Notepad style.
+final class StatusBar: NSView {
+    static let height: CGFloat = 24
+    let position = StatusBar.label()
+    let characters = StatusBar.label()
+
+    private static func label() -> NSTextField {
+        let l = NSTextField(labelWithString: "")
+        l.font = .systemFont(ofSize: 11)
+        l.textColor = .secondaryLabelColor
+        l.translatesAutoresizingMaskIntoConstraints = false
+        return l
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        let gap = NSBox()
+        gap.boxType = .separator
+        gap.translatesAutoresizingMaskIntoConstraints = false
+        for v in [divider, gap, position, characters] { addSubview(v) }
+        NSLayoutConstraint.activate([
+            divider.topAnchor.constraint(equalTo: topAnchor),
+            divider.leadingAnchor.constraint(equalTo: leadingAnchor),
+            divider.trailingAnchor.constraint(equalTo: trailingAnchor),
+            position.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            position.centerYAnchor.constraint(equalTo: centerYAnchor),
+            gap.leadingAnchor.constraint(equalTo: position.leadingAnchor, constant: 130),
+            gap.widthAnchor.constraint(equalToConstant: 1),
+            gap.topAnchor.constraint(equalTo: topAnchor, constant: 5),
+            gap.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
+            characters.leadingAnchor.constraint(equalTo: gap.trailingAnchor, constant: 12),
+            characters.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        bounds.fill()
     }
 }
 
