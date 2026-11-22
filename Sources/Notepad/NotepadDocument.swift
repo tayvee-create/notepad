@@ -143,6 +143,11 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
             host?.addTabbedWindow(window, ordered: .above)
         }
         super.showWindows()
+        // Safari-style: keep the tab bar (and its + button) showing even with one tab.
+        if let window = windowControllers.first?.window,
+           let group = window.tabGroup, !group.isTabBarVisible {
+            window.toggleTabBar(nil)
+        }
     }
 
     private func applyWordWrap(_ wrap: Bool) {

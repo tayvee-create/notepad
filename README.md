@@ -17,7 +17,7 @@ The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/Note
 - App icon drawn by `Icon/make-icon.swift` (run `swift Icon/make-icon.swift && iconutil -c icns Icon/Notepad.iconset -o Icon/Notepad.icns` to redraw)
 - White editing area that follows Light/Dark Mode automatically
 - Status bar (View > Status Bar, ⌘/; remembered): Ln/Col and character count, "5 of 1,234 characters" when text is selected
-- Tabs: File > New Tab (⌘N), New Window (⇧⌘N), + button on the tab bar; files opened together join one window
+- Tabs: tab bar always shown Safari-style with a + button; File > New Tab (⌘N), New Window (⇧⌘N); files opened together join one window
 - Drag files onto the text to open them in new tabs
 - View > Line Numbers (⌥⌘L; remembered); a wrapped line gets one number
 - Spell check: red underlines as you type, right-click for suggestions; Edit > Spelling (⌘; check document, ⌘: panel); auto-correct off by default; both toggles remembered
