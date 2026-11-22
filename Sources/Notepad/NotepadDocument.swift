@@ -78,7 +78,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
 
         let controller = NotepadWindowController(window: window)
         addWindowController(controller)
-        controller.startTintingTabBar()
+        controller.startTintingTitleBar()
 
         if let last = NSApp.windows.filter({ $0 !== window && $0.isVisible }).last {
             window.setFrameTopLeftPoint(window.cascadeTopLeft(from: NSPoint(x: last.frame.minX, y: last.frame.maxY)))
@@ -214,9 +214,9 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
            let group = window.tabGroup, !group.isTabBarVisible {
             window.toggleTabBar(nil)
         }
-        // The tab bar is built lazily, so tint on the next pass.
+        // The title bar is laid out lazily, so tint on the next pass.
         DispatchQueue.main.async { [weak self] in
-            for w in self?.windowControllers.first?.window?.tabGroup?.windows ?? [] { TabBarTint.apply(to: w) }
+            for w in self?.windowControllers.first?.window?.tabGroup?.windows ?? [] { TitleBarTint.apply(to: w) }
         }
     }
 
@@ -538,11 +538,11 @@ final class NotepadWindowController: NSWindowController {
     }
 
     /// The + button on the tab bar.
-    /// Re-tint whenever this tab comes to the front (AppKit may rebuild the tab bar).
-    func startTintingTabBar() {
+    /// Re-tint whenever this tab comes to the front or resizes (AppKit may rebuild the title bar).
+    func startTintingTitleBar() {
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification, NSWindow.didResizeNotification] {
             NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                TabBarTint.apply(to: self?.window)
+                TitleBarTint.apply(to: self?.window)
             }
         }
     }
