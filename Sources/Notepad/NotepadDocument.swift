@@ -36,8 +36,8 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
         tv.isAutomaticTextReplacementEnabled = false
-        tv.isAutomaticSpellingCorrectionEnabled = false
-        tv.isContinuousSpellCheckingEnabled = false
+        tv.isAutomaticSpellingCorrectionEnabled = Settings.autoCorrect
+        tv.isContinuousSpellCheckingEnabled = Settings.spellCheck
         tv.isGrammarCheckingEnabled = false
         tv.smartInsertDeleteEnabled = false
         tv.isAutomaticLinkDetectionEnabled = false
@@ -223,6 +223,20 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         }
     }
 
+    @objc func toggleSpellCheck(_ sender: Any?) {
+        Settings.spellCheck.toggle()
+        for case let doc as NotepadDocument in NSDocumentController.shared.documents {
+            doc.textView?.isContinuousSpellCheckingEnabled = Settings.spellCheck
+        }
+    }
+
+    @objc func toggleAutoCorrect(_ sender: Any?) {
+        Settings.autoCorrect.toggle()
+        for case let doc as NotepadDocument in NSDocumentController.shared.documents {
+            doc.textView?.isAutomaticSpellingCorrectionEnabled = Settings.autoCorrect
+        }
+    }
+
     @objc func toggleLineNumbers(_ sender: Any?) {
         Settings.lineNumbers.toggle()
         for doc in NSDocumentController.shared.documents {
@@ -305,6 +319,14 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(toggleWordWrap(_:)) {
             menuItem.state = Settings.wordWrap ? .on : .off
+            return true
+        }
+        if menuItem.action == #selector(toggleSpellCheck(_:)) {
+            menuItem.state = Settings.spellCheck ? .on : .off
+            return true
+        }
+        if menuItem.action == #selector(toggleAutoCorrect(_:)) {
+            menuItem.state = Settings.autoCorrect ? .on : .off
             return true
         }
         if menuItem.action == #selector(toggleLineNumbers(_:)) {

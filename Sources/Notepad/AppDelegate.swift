@@ -6,6 +6,14 @@ enum Settings {
         get { UserDefaults.standard.object(forKey: "wordWrap") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "wordWrap") }
     }
+    static var spellCheck: Bool {
+        get { UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "spellCheck") }
+    }
+    static var autoCorrect: Bool {
+        get { UserDefaults.standard.object(forKey: "autoCorrect") as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: "autoCorrect") }
+    }
     static var lineNumbers: Bool {
         get { UserDefaults.standard.object(forKey: "lineNumbers") as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: "lineNumbers") }
@@ -139,6 +147,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         edit.addItem(item("Go To Line…", #selector(NotepadDocument.goToLine(_:)), "l"))
         edit.addItem(.separator())
         edit.addItem(item("Select All", #selector(NSText.selectAll(_:)), "a"))
+        edit.addItem(.separator())
+        let spelling = NSMenu(title: "Spelling")
+        spelling.addItem(item("Show Spelling…", #selector(NSText.showGuessPanel(_:)), ":"))
+        spelling.addItem(item("Check Document Now", #selector(NSText.checkSpelling(_:)), ";"))
+        spelling.addItem(.separator())
+        spelling.addItem(item("Check Spelling While Typing", #selector(NotepadDocument.toggleSpellCheck(_:))))
+        spelling.addItem(item("Correct Spelling Automatically", #selector(NotepadDocument.toggleAutoCorrect(_:))))
+        let spellingItem = item("Spelling", nil)
+        spellingItem.submenu = spelling
+        edit.addItem(spellingItem)
         let timeDate = NSMenuItem(title: "Time/Date", action: #selector(NotepadDocument.insertTimeDate(_:)),
                                   keyEquivalent: String(Character(UnicodeScalar(NSF5FunctionKey)!)))
         timeDate.keyEquivalentModifierMask = []

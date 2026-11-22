@@ -20,6 +20,7 @@ The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/Note
 - Tabs: File > New Tab (⌘N), New Window (⇧⌘N), + button on the tab bar; files opened together join one window
 - Drag files onto the text to open them in new tabs
 - View > Line Numbers (⌥⌘L; remembered); a wrapped line gets one number
+- Spell check: red underlines as you type, right-click for suggestions; Edit > Spelling (⌘; check document, ⌘: panel); auto-correct off by default; both toggles remembered
 - Format > Word Wrap (on by default; remembered)
 - New / Open / Save / Save As / Print, "unsaved changes" prompt on close
 - Title bar shows "Untitled - Notepad"
