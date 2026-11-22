@@ -42,6 +42,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = true
         NSApp.mainMenu = buildMenu()
+        // Testing aid: NOTEPAD_APPEARANCE=dark|light forces an appearance.
+        switch ProcessInfo.processInfo.environment["NOTEPAD_APPEARANCE"] {
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        default: break
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -49,7 +55,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Testing aid: NOTEPAD_SNAPSHOT=/path/out.png renders the front window to a PNG and quits.
         if let out = ProcessInfo.processInfo.environment["NOTEPAD_SNAPSHOT"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                if let frameView = NSApp.orderedWindows.first?.contentView?.superview,
+                if ProcessInfo.processInfo.environment["NOTEPAD_DUMP"] != nil,
+                   let fv = NSApp.orderedWindows.first?.contentView?.superview {
+                    func dump(_ v: NSView, _ depth: Int) {
+                        let layerInfo = v.layer.map { " layer=\(type(of: $0))" } ?? ""
+                        print(String(repeating: "  ", count: depth) + "\(type(of: v)) \(v.frame)\(layerInfo)")
+                        for s in v.subviews { dump(s, depth + 1) }
+                    }
+                    dump(fv, 0)
+                }
+                if let frameView = (NSApp.mainWindow ?? NSApp.keyWindow ?? NSApp.orderedWindows.first)?.contentView?.superview,
                    let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds) {
                     frameView.cacheDisplay(in: frameView.bounds, to: rep)
                     try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: out))

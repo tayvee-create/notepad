@@ -18,6 +18,7 @@ The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/Note
 - White editing area that follows Light/Dark Mode automatically
 - Status bar (View > Status Bar, ⌘/; remembered): Ln/Col, words and characters ("x of y" for a selection), line ending and encoding — click either of the last two to change how the file saves
 - Tabs: tab bar always shown Safari-style with a + button; File > New Tab (⌘N), New Window (⇧⌘N); files opened together join one window
+- Tab bar tinted with the icon's blue gradient (`TabBarTint.swift`: a click-through overlay, since AppKit has no tab bar colour setting); stronger navy in Dark Mode
 - Drag files onto the text to open them in new tabs
 - View > Line Numbers (⌥⌘L; remembered); a wrapped line gets one number
 - Spell check: red underlines as you type, right-click for suggestions; Edit > Spelling (⌘; check document, ⌘: panel); auto-correct off by default; both toggles remembered
@@ -29,4 +30,4 @@ The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/Note
 - .LOG: a file starting with `.LOG` gets the time and date appended on opening (Windows Notepad trick)
 
 ## Testing
-`NOTEPAD_SNAPSHOT=out.png build/Notepad.app/Contents/MacOS/Notepad file.txt` renders the front window to a PNG and quits (no Screen Recording permission needed).
+`NOTEPAD_SNAPSHOT=out.png build/Notepad.app/Contents/MacOS/Notepad file.txt` renders the front window to a PNG and quits (no Screen Recording permission needed). Add `NOTEPAD_APPEARANCE=dark` (or `light`) to force an appearance, `NOTEPAD_DUMP=1` to print the window's view tree.
