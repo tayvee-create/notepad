@@ -1,6 +1,24 @@
-# Notepad
+# <img src="Icon/Notepad-1024.png" width="48" align="top" alt=""> Notepad
 
-A basic Windows-style Notepad for macOS (Swift + AppKit, SwiftPM).
+A simple, Windows-style Notepad for macOS: plain text, Courier New, word wrap, tabs, line numbers and a status bar. Native Swift + AppKit, no dependencies.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img src="docs/screenshot-light.png" alt="Notepad with two tabs open, line numbers, a blue title bar and the status bar" width="800">
+</picture>
+
+<details>
+<summary>Light and Dark Mode side by side</summary>
+
+| Light | Dark |
+|---|---|
+| <img src="docs/screenshot-light.png" alt="Notepad in Light Mode" width="400"> | <img src="docs/screenshot-dark.png" alt="Notepad in Dark Mode" width="400"> |
+
+</details>
+
+## Build
+
+Needs macOS 13 or later and the Xcode command line tools (`xcode-select --install`).
 
 Build and run:
 
@@ -30,4 +48,4 @@ The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/Note
 - .LOG: a file starting with `.LOG` gets the time and date appended on opening (Windows Notepad trick)
 
 ## Testing
-`NOTEPAD_SNAPSHOT=out.png build/Notepad.app/Contents/MacOS/Notepad file.txt` renders the front window to a PNG and quits (no Screen Recording permission needed). Add `NOTEPAD_APPEARANCE=dark` (or `light`) to force an appearance, `NOTEPAD_DUMP=1` to print the window's view tree.
+`NOTEPAD_SNAPSHOT=out.png build/Notepad.app/Contents/MacOS/Notepad file.txt` renders the front window to a PNG and quits (no Screen Recording permission needed). Add `NOTEPAD_APPEARANCE=dark` (or `light`) to force an appearance, `NOTEPAD_DUMP=1` to print the window's view tree. The README screenshots in `docs/` were made this way.
