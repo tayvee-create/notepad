@@ -2,7 +2,8 @@ import AppKit
 
 final class NotepadDocument: NSDocument, NSTextViewDelegate {
     private var text = ""
-    private var encoding: String.Encoding = .utf8
+    private var encoding: TextEncoding = .utf8
+    private var lineEnding: LineEnding = .lf
     private var textView: NSTextView!
     private var scrollView: NSScrollView!
     private var statusBar: StatusBar!
@@ -84,9 +85,30 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
             window.setFrameAutosaveName("NotepadWindow")
             if window.frame.origin == .zero { window.center() }
         }
+        statusBar.lineEnding.target = self
+        statusBar.lineEnding.action = #selector(chooseLineEnding(_:))
+        statusBar.encoding.target = self
+        statusBar.encoding.action = #selector(chooseEncoding(_:))
+
         window.makeFirstResponder(tv)
         tv.setSelectedRange(NSRange(location: 0, length: 0))
+        if fileURL != nil, text.hasPrefix(".LOG") { appendLogTimeStamp() }
         updateStatus()
+    }
+
+    /// Windows Notepad's .LOG trick: a file starting with .LOG gets the time and date added at the end on opening.
+    private func appendLogTimeStamp() {
+        let end = (textView.string as NSString).length
+        let lead = "\n"   // as Windows: a line break, then the stamp (a blank line if the file already ended with one)
+        textView.setSelectedRange(NSRange(location: end, length: 0))
+        textView.insertText(lead + Self.timeDateString() + "\n", replacementRange: NSRange(location: end, length: 0))
+        textView.scrollRangeToVisible(textView.selectedRange())
+    }
+
+    static func timeDateString() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm dd/MM/yyyy"
+        return f.string(from: Date())
     }
 
     private func applyStatusBar(_ show: Bool) {
@@ -97,7 +119,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         if show { updateStatus() }
     }
 
-    /// "Ln 3, Col 12" and "1,234 characters" (or "5 of 1,234 characters" with a selection).
+    /// Ln/Col, word and character counts (with "x of y" for a selection), line ending and encoding.
     private func updateStatus() {
         guard let tv = textView, let bar = statusBar, !bar.isHidden else { return }
         let s = tv.string as NSString
@@ -109,12 +131,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         while i < caret {
             let r = s.rangeOfCharacter(from: .newlines, options: [], range: NSRange(location: i, length: caret - i))
             if r.location == NSNotFound { break }
-            // Treat \r\n as a single line break.
-            if s.character(at: r.location) == 13, r.location + 1 < s.length, s.character(at: r.location + 1) == 10 {
-                if r.location + 1 < caret { i = r.location + 2 } else { i = caret; break }
-            } else {
-                i = r.location + 1
-            }
+            i = r.location + 1
             line += 1
         }
         let lineStart = s.lineRange(for: NSRange(location: caret, length: 0)).location
@@ -122,16 +139,64 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
 
         let fmt = NumberFormatter()
         fmt.numberStyle = .decimal
-        let total = tv.string.count
-        let totalText = fmt.string(from: NSNumber(value: total)) ?? "\(total)"
-        let noun = total == 1 ? "character" : "characters"
-        var chars = "\(totalText) \(noun)"
+        func n(_ v: Int) -> String { fmt.string(from: NSNumber(value: v)) ?? "\(v)" }
+        func words(_ str: String) -> Int {
+            var count = 0
+            str.enumerateSubstrings(in: str.startIndex..., options: [.byWords, .substringNotRequired]) { _, _, _, _ in count += 1 }
+            return count
+        }
+
+        let totalChars = tv.string.count
+        let totalWords = words(tv.string)
+        let charNoun = totalChars == 1 ? "character" : "characters"
+        let wordNoun = totalWords == 1 ? "word" : "words"
         if sel.length > 0 {
-            let selected = s.substring(with: sel).count
-            chars = "\(fmt.string(from: NSNumber(value: selected)) ?? "\(selected)") of \(totalText) \(noun)"
+            let selected = s.substring(with: sel)
+            bar.counts.stringValue = "\(n(words(selected))) of \(n(totalWords)) \(wordNoun), \(n(selected.count)) of \(n(totalChars)) \(charNoun)"
+        } else {
+            bar.counts.stringValue = "\(n(totalWords)) \(wordNoun), \(n(totalChars)) \(charNoun)"
         }
         bar.position.stringValue = "Ln \(line), Col \(col)"
-        bar.characters.stringValue = chars
+        bar.lineEnding.setText(lineEnding.rawValue)
+        bar.encoding.setText(encoding.rawValue)
+    }
+
+    // MARK: Line ending and encoding pickers (status bar)
+
+    @objc func chooseLineEnding(_ sender: NSButton) {
+        popUpChoices(LineEnding.allCases.map(\.rawValue), current: lineEnding.rawValue,
+                     action: #selector(setLineEnding(_:)), from: sender)
+    }
+
+    @objc func chooseEncoding(_ sender: NSButton) {
+        popUpChoices(TextEncoding.allCases.map(\.rawValue), current: encoding.rawValue,
+                     action: #selector(setEncoding(_:)), from: sender)
+    }
+
+    private func popUpChoices(_ titles: [String], current: String, action: Selector, from button: NSButton) {
+        let menu = NSMenu()
+        var currentItem: NSMenuItem?
+        for title in titles {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            if title == current { item.state = .on; currentItem = item }
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: currentItem, at: NSPoint(x: 0, y: button.bounds.height - 2), in: button)
+    }
+
+    @objc func setLineEnding(_ sender: NSMenuItem) {
+        guard let new = LineEnding(rawValue: sender.title), new != lineEnding else { return }
+        lineEnding = new
+        updateChangeCount(.changeDone)
+        updateStatus()
+    }
+
+    @objc func setEncoding(_ sender: NSMenuItem) {
+        guard let new = TextEncoding(rawValue: sender.title), new != encoding else { return }
+        encoding = new
+        updateChangeCount(.changeDone)
+        updateStatus()
     }
 
     /// Open in a tab of the front Notepad window (also when several files open at once).
@@ -172,15 +237,10 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     // MARK: Reading & writing (plain text)
 
     override func read(from data: Data, ofType typeName: String) throws {
-        if let s = String(data: data, encoding: .utf8) {
-            text = s; encoding = .utf8
-        } else if let s = String(data: data, encoding: .utf16) {
-            text = s; encoding = .utf16
-        } else if let s = String(data: data, encoding: .windowsCP1252) {
-            text = s; encoding = .windowsCP1252
-        } else {
-            text = String(decoding: data, as: UTF8.self); encoding = .utf8
-        }
+        let (decoded, enc) = TextEncoding.decode(data)
+        encoding = enc
+        lineEnding = LineEnding.detect(in: decoded) ?? .lf
+        text = LineEnding.normalise(decoded)
         if let tv = textView {
             tv.string = text
             ruler?.textChanged()
@@ -189,8 +249,17 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     }
 
     override func data(ofType typeName: String) throws -> Data {
-        let current = textView?.string ?? text
-        return current.data(using: encoding, allowLossyConversion: true) ?? Data()
+        var current = LineEnding.normalise(textView?.string ?? text)
+        if lineEnding != .lf {
+            current = current.replacingOccurrences(of: "\n", with: lineEnding.characters)
+        }
+        guard let data = encoding.encode(current) else {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteInapplicableStringEncodingError, userInfo: [
+                NSLocalizedDescriptionKey: "Some characters in this file can't be saved as \(encoding.rawValue).",
+                NSLocalizedRecoverySuggestionErrorKey: "Click \(encoding.rawValue) in the status bar, choose UTF-8, then save again.",
+            ])
+        }
+        return data
     }
 
     override func writableTypes(for saveOperation: NSDocument.SaveOperationType) -> [String] {
@@ -277,9 +346,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     }
 
     @objc func insertTimeDate(_ sender: Any?) {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm dd/MM/yyyy"
-        textView.insertText(f.string(from: Date()), replacementRange: textView.selectedRange())
+        textView.insertText(Self.timeDateString(), replacementRange: textView.selectedRange())
     }
 
     @objc func goToLine(_ sender: Any?) {
@@ -326,6 +393,9 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
             menuItem.state = Settings.wordWrap ? .on : .off
             return true
         }
+        if menuItem.action == #selector(setLineEnding(_:)) || menuItem.action == #selector(setEncoding(_:)) {
+            return true
+        }
         if menuItem.action == #selector(toggleSpellCheck(_:)) {
             menuItem.state = Settings.spellCheck ? .on : .off
             return true
@@ -361,42 +431,61 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     }
 }
 
-/// Bottom status bar: caret position and character count, Windows Notepad style.
+/// Bottom status bar, Windows Notepad style:
+/// Ln/Col | words, characters  ......  line ending | encoding (the last two are clickable).
 final class StatusBar: NSView {
     static let height: CGFloat = 24
     let position = StatusBar.label()
-    let characters = StatusBar.label()
+    let counts = StatusBar.label()
+    let lineEnding = StatusButton()
+    let encoding = StatusButton()
 
     private static func label() -> NSTextField {
         let l = NSTextField(labelWithString: "")
         l.font = .systemFont(ofSize: 11)
         l.textColor = .secondaryLabelColor
+        l.lineBreakMode = .byTruncatingTail
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
     }
 
+    private static func separator() -> NSBox {
+        let b = NSBox()
+        b.boxType = .separator
+        b.translatesAutoresizingMaskIntoConstraints = false
+        return b
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
-        let divider = NSBox()
-        divider.boxType = .separator
-        divider.translatesAutoresizingMaskIntoConstraints = false
-        let gap = NSBox()
-        gap.boxType = .separator
-        gap.translatesAutoresizingMaskIntoConstraints = false
-        for v in [divider, gap, position, characters] { addSubview(v) }
+        let top = StatusBar.separator()
+        let sep1 = StatusBar.separator(), sep2 = StatusBar.separator(), sep3 = StatusBar.separator()
+        for v in [top, sep1, sep2, sep3, position, counts, lineEnding, encoding] { addSubview(v) }
+        func vertical(_ b: NSBox) -> [NSLayoutConstraint] {
+            [b.widthAnchor.constraint(equalToConstant: 1),
+             b.topAnchor.constraint(equalTo: topAnchor, constant: 5),
+             b.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)]
+        }
         NSLayoutConstraint.activate([
-            divider.topAnchor.constraint(equalTo: topAnchor),
-            divider.leadingAnchor.constraint(equalTo: leadingAnchor),
-            divider.trailingAnchor.constraint(equalTo: trailingAnchor),
+            top.topAnchor.constraint(equalTo: topAnchor),
+            top.leadingAnchor.constraint(equalTo: leadingAnchor),
+            top.trailingAnchor.constraint(equalTo: trailingAnchor),
+
             position.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             position.centerYAnchor.constraint(equalTo: centerYAnchor),
-            gap.leadingAnchor.constraint(equalTo: position.leadingAnchor, constant: 130),
-            gap.widthAnchor.constraint(equalToConstant: 1),
-            gap.topAnchor.constraint(equalTo: topAnchor, constant: 5),
-            gap.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-            characters.leadingAnchor.constraint(equalTo: gap.trailingAnchor, constant: 12),
-            characters.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
+            sep1.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 130),
+            counts.leadingAnchor.constraint(equalTo: sep1.trailingAnchor, constant: 12),
+            counts.centerYAnchor.constraint(equalTo: centerYAnchor),
+            counts.trailingAnchor.constraint(lessThanOrEqualTo: sep2.leadingAnchor, constant: -8),
+
+            encoding.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            encoding.centerYAnchor.constraint(equalTo: centerYAnchor),
+            sep3.trailingAnchor.constraint(equalTo: encoding.leadingAnchor, constant: -6),
+            lineEnding.trailingAnchor.constraint(equalTo: sep3.leadingAnchor, constant: -6),
+            lineEnding.centerYAnchor.constraint(equalTo: centerYAnchor),
+            sep2.trailingAnchor.constraint(equalTo: lineEnding.leadingAnchor, constant: -6),
+        ] + vertical(sep1) + vertical(sep2) + vertical(sep3))
+        counts.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -404,6 +493,30 @@ final class StatusBar: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.windowBackgroundColor.setFill()
         bounds.fill()
+    }
+}
+
+/// A flat, clickable status bar item that pops up a menu of choices.
+final class StatusButton: NSButton {
+    init() {
+        super.init(frame: .zero)
+        isBordered = false
+        setButtonType(.momentaryChange)
+        translatesAutoresizingMaskIntoConstraints = false
+        toolTip = "Click to change"
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func setText(_ text: String) {
+        attributedTitle = NSAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: 11),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ])
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
     }
 }
 
