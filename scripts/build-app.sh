@@ -42,3 +42,13 @@ PLIST
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
 echo "Built $PWD/$APP"
 if [[ "$1" == "--run" ]]; then open "$APP"; fi
+if [[ "$1" == "--install" ]]; then
+  # Quit any running copy, replace /Applications/Notepad.app, register it with Launch Services.
+  osascript -e 'quit app id "wales.rowlands.notepad"' >/dev/null 2>&1 || true
+  sleep 1
+  rm -rf /Applications/Notepad.app
+  ditto "$APP" /Applications/Notepad.app
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Notepad.app
+  echo "Installed /Applications/Notepad.app"
+  open /Applications/Notepad.app
+fi

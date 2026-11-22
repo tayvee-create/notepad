@@ -6,6 +6,10 @@ Build and run:
 
     scripts/build-app.sh --run
 
+Install into /Applications (quits any running copy, replaces it, opens the new one):
+
+    scripts/build-app.sh --install
+
 The app is built to `build/Notepad.app` (compile cache in `~/Library/Caches/NotepadBuild`).
 
 ## Features
