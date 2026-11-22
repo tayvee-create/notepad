@@ -6,6 +6,10 @@ enum Settings {
         get { UserDefaults.standard.object(forKey: "wordWrap") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "wordWrap") }
     }
+    static var lineNumbers: Bool {
+        get { UserDefaults.standard.object(forKey: "lineNumbers") as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: "lineNumbers") }
+    }
     static var statusBar: Bool {
         get { UserDefaults.standard.object(forKey: "statusBar") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "statusBar") }
@@ -28,16 +32,38 @@ enum Settings {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
-        NSWindow.allowsAutomaticWindowTabbing = false
+        NSWindow.allowsAutomaticWindowTabbing = true
         NSApp.mainMenu = buildMenu()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate(ignoringOtherApps: true)
+        // Testing aid: NOTEPAD_SNAPSHOT=/path/out.png renders the front window to a PNG and quits.
+        if let out = ProcessInfo.processInfo.environment["NOTEPAD_SNAPSHOT"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                if let frameView = NSApp.orderedWindows.first?.contentView?.superview,
+                   let rep = frameView.bitmapImageRepForCachingDisplay(in: frameView.bounds) {
+                    frameView.cacheDisplay(in: frameView.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: out))
+                }
+                exit(0)
+            }
+        }
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { true }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    /// File > New Window: a new document in its own window rather than a tab.
+    @objc func newWindow(_ sender: Any?) {
+        let dc = NSDocumentController.shared
+        guard let doc = (try? dc.openUntitledDocumentAndDisplay(false)) as? NotepadDocument else { return }
+        doc.makeWindowControllers()
+        let window = doc.windowControllers.first?.window
+        window?.tabbingMode = .disallowed
+        doc.showWindows()
+        window?.tabbingMode = .preferred
+    }
 
     // MARK: Menu
 
@@ -70,7 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // File
         let file = NSMenu(title: "File")
-        file.addItem(item("New", #selector(NSDocumentController.newDocument(_:)), "n"))
+        file.addItem(item("New Tab", #selector(NSDocumentController.newDocument(_:)), "n"))
+        file.addItem(item("New Window", #selector(AppDelegate.newWindow(_:)), "n", [.command, .shift]))
         file.addItem(item("Open…", #selector(NSDocumentController.openDocument(_:)), "o"))
         let recent = NSMenu(title: "Open Recent")
         recent.addItem(item("Clear Menu", #selector(NSDocumentController.clearRecentDocuments(_:))))
@@ -127,6 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // View
         let view = NSMenu(title: "View")
         view.addItem(item("Status Bar", #selector(NotepadDocument.toggleStatusBar(_:)), "/"))
+        view.addItem(item("Line Numbers", #selector(NotepadDocument.toggleLineNumbers(_:)), "l", [.command, .option]))
+        view.addItem(.separator())
         add(view, "View", to: main)
 
         // Window

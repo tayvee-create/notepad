@@ -6,6 +6,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
     private var textView: NSTextView!
     private var scrollView: NSScrollView!
     private var statusBar: StatusBar!
+    private var ruler: LineNumberRuler!
 
     override class var autosavesInPlace: Bool { false }
     override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool { true }
@@ -17,13 +18,16 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
         window.minSize = NSSize(width: 240, height: 160)
+        window.tabbingMode = .preferred          // new documents open as tabs
+        window.tabbingIdentifier = "NotepadDocument"
 
         scrollView = NSScrollView(frame: window.contentView!.bounds)
         scrollView.autoresizingMask = [.width, .height]
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .noBorder
 
-        let tv = NSTextView(frame: scrollView.bounds)
+        let tv = NotepadTextView(usingTextLayoutManager: false)
+        tv.frame = scrollView.bounds
         tv.isRichText = false
         tv.importsGraphics = false
         tv.allowsUndo = true
@@ -38,7 +42,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         tv.smartInsertDeleteEnabled = false
         tv.isAutomaticLinkDetectionEnabled = false
         tv.textContainerInset = NSSize(width: 2, height: 2)
-        tv.minSize = NSSize(width: 0, height: 0)
+        tv.minSize = NSSize(width: 0, height: scrollView.contentSize.height)
         tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         tv.isVerticallyResizable = true
         tv.autoresizingMask = [.width]
@@ -55,6 +59,11 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         textView = tv
 
         scrollView.documentView = tv
+
+        ruler = LineNumberRuler(textView: tv, scrollView: scrollView)
+        scrollView.verticalRulerView = ruler
+        scrollView.hasVerticalRuler = true
+        scrollView.rulersVisible = Settings.lineNumbers
 
         // Content = text area on top, status bar along the bottom.
         let content = NSView(frame: window.contentView!.bounds)
@@ -125,14 +134,27 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         bar.characters.stringValue = chars
     }
 
+    /// Open in a tab of the front Notepad window (also when several files open at once).
+    override func showWindows() {
+        if let window = windowControllers.first?.window, !window.isVisible, window.tabbingMode != .disallowed {
+            let isNotepad: (NSWindow) -> Bool = { $0 !== window && $0.isVisible && $0.windowController is NotepadWindowController }
+            let host = [NSApp.mainWindow, NSApp.keyWindow].compactMap { $0 }.first(where: isNotepad)
+                ?? NSApp.orderedWindows.first(where: isNotepad)
+            host?.addTabbedWindow(window, ordered: .above)
+        }
+        super.showWindows()
+    }
+
     private func applyWordWrap(_ wrap: Bool) {
         guard let tv = textView, let container = tv.textContainer else { return }
         scrollView.hasHorizontalScroller = !wrap
+        scrollView.tile()   // settle ruler and scroller sizes first
+        let visibleWidth = scrollView.contentView.bounds.width
         if wrap {
             container.widthTracksTextView = true
             tv.isHorizontallyResizable = false
-            tv.frame.size.width = scrollView.contentSize.width
-            container.containerSize = NSSize(width: scrollView.contentSize.width, height: .greatestFiniteMagnitude)
+            tv.frame.size.width = visibleWidth
+            container.containerSize = NSSize(width: visibleWidth, height: .greatestFiniteMagnitude)
         } else {
             container.widthTracksTextView = false
             container.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
@@ -154,7 +176,11 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         } else {
             text = String(decoding: data, as: UTF8.self); encoding = .utf8
         }
-        textView?.string = text
+        if let tv = textView {
+            tv.string = text
+            ruler?.textChanged()
+            updateStatus()
+        }
     }
 
     override func data(ofType typeName: String) throws -> Data {
@@ -197,6 +223,15 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         }
     }
 
+    @objc func toggleLineNumbers(_ sender: Any?) {
+        Settings.lineNumbers.toggle()
+        for doc in NSDocumentController.shared.documents {
+            guard let doc = doc as? NotepadDocument else { continue }
+            doc.scrollView?.rulersVisible = Settings.lineNumbers
+            doc.applyWordWrap(Settings.wordWrap)
+        }
+    }
+
     @objc func toggleStatusBar(_ sender: Any?) {
         Settings.statusBar.toggle()
         for doc in NSDocumentController.shared.documents {
@@ -216,7 +251,9 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
         let newFont = sender.convert(Settings.font)
         Settings.font = newFont
         for doc in NSDocumentController.shared.documents {
-            (doc as? NotepadDocument)?.textView?.font = newFont
+            guard let doc = doc as? NotepadDocument else { continue }
+            doc.textView?.font = newFont
+            doc.ruler?.fontChanged()
         }
     }
 
@@ -270,6 +307,10 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
             menuItem.state = Settings.wordWrap ? .on : .off
             return true
         }
+        if menuItem.action == #selector(toggleLineNumbers(_:)) {
+            menuItem.state = Settings.lineNumbers ? .on : .off
+            return true
+        }
         if menuItem.action == #selector(toggleStatusBar(_:)) {
             menuItem.state = Settings.statusBar ? .on : .off
             return true
@@ -284,6 +325,7 @@ final class NotepadDocument: NSDocument, NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) {
         text = textView.string
+        ruler?.textChanged()
         updateStatus()
     }
 
@@ -342,5 +384,16 @@ final class StatusBar: NSView {
 final class NotepadWindowController: NSWindowController {
     override func windowTitle(forDocumentDisplayName displayName: String) -> String {
         "\(displayName) - Notepad"
+    }
+
+    /// Tabs show just the file name.
+    override func synchronizeWindowTitleWithDocumentName() {
+        super.synchronizeWindowTitleWithDocumentName()
+        window?.tab.title = document?.displayName ?? "Untitled"
+    }
+
+    /// The + button on the tab bar.
+    override func newWindowForTab(_ sender: Any?) {
+        NSDocumentController.shared.newDocument(sender)
     }
 }
