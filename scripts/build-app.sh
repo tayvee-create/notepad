@@ -32,7 +32,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
       <key>CFBundleTypeRole</key><string>Editor</string>
       <key>LSHandlerRank</key><string>Alternate</string>
       <key>LSItemContentTypes</key>
-      <array><string>public.plain-text</string><string>public.text</string><string>public.data</string></array>
+      <array><string>public.plain-text</string><string>net.daringfireball.markdown</string><string>public.text</string><string>public.data</string></array>
       <key>NSDocumentClass</key><string>Notepad.NotepadDocument</string>
     </dict>
   </array>
