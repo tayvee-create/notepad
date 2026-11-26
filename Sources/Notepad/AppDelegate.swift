@@ -53,6 +53,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate(ignoringOtherApps: true)
         // Testing aid: NOTEPAD_SNAPSHOT=/path/out.png renders the front window to a PNG and quits.
+        // Testing aid: NOTEPAD_RESIZE=1400x700 resizes the front window after it opens.
+        if let size = ProcessInfo.processInfo.environment["NOTEPAD_RESIZE"]?.split(separator: "x").compactMap({ Double($0) }),
+           size.count == 2 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                guard let w = NSApp.mainWindow ?? NSApp.orderedWindows.first else { return }
+                var f = w.frame
+                f.origin.y += f.height - size[1]
+                f.size = NSSize(width: size[0], height: size[1])
+                w.setFrame(f, display: true)
+            }
+        }
         if let out = ProcessInfo.processInfo.environment["NOTEPAD_SNAPSHOT"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 if ProcessInfo.processInfo.environment["NOTEPAD_DUMP"] != nil,
